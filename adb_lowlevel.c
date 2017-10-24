@@ -1,11 +1,11 @@
 #include <linux/device.h>
-#include <linux/miscdevice.h>
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/gpio.h>
 #include <linux/interrupt.h>
-#include <linux/delay.h>
 #include <linux/time.h>
+#include <linux/delay.h>
+#include <linux/completion.h>
 
 #include "adb_lowlevel.h"
 
@@ -39,20 +39,26 @@ void _adb_timer_kick(void) {
 void _adb_timer_start(void) {
 	hrtimer_start(&_adb_wdt, _adb_period, HRTIMER_MODE_REL);
 }
+struct completion _adb_compl;
 enum hrtimer_restart _adb_timer_func(struct hrtimer* timer) {
 	switch (_adb_state) {
 		case STATE_ADB_TIMING_HI:
-			_adb_in->error = ADB_ERROR_UNKNOWN;
+			if (_adb_byte_counter) {
+				_adb_in->error = ADB_ERROR_OK;
+			} else {
+				_adb_in->error = ADB_ERROR_UNKNOWN;
+			}
 			break;
 		case STATE_ADB_WAITING_LO:
 			_adb_in->error = ADB_ERROR_NO_DATA;
 			break;
 		default:
-			_adb_in->error = ADB_ERROR_OK;
+			_adb_in->error = ADB_ERROR_UNKNOWN;
 			break;
 	}
 	_adb_in->len = _adb_byte_counter;
 	_adb_state = STATE_ADB_IDLE;
+	complete(&_adb_compl);
 	return HRTIMER_NORESTART;
 }
 
@@ -91,10 +97,6 @@ static irqreturn_t adb_irq(int irq, void* data) {
 		}
 	} else {
 		switch (_adb_state) {
-			case STATE_ADB_WAITING_HI:
-				_adb_state = STATE_ADB_WAITING_LO;
-				break;
-				
 			case STATE_ADB_TIMING_LO:
 				_adb_last_l = deltat;
 				_adb_state = STATE_ADB_TIMING_HI;
@@ -145,13 +147,11 @@ bool adb_transfer(adb_packet* p) {
 	unsigned long flags;
 	uint8_t cmd;
 	uint8_t i;
-
+	
 	local_irq_save(flags);
 
 	_adb_pin_low();
-	//usleep_range(760/2, 770/2);
-	//TODO: change to a non-blocking?
-	udelay(765);
+	usleep_range(710, 720); //for some reason usleep range is not really precise
 	_adb_bit_1();
 	_adb_send_byte(p->command);
 	_adb_bit_0();
@@ -174,13 +174,10 @@ bool adb_transfer(adb_packet* p) {
 			_adb_bit_counter = -1;
 			_adb_byte_counter = 0;
 			_adb_state = STATE_ADB_WAITING_LO;
+			reinit_completion(&_adb_compl);
 			_adb_timer_start();
-			
-			//TODO: change with wait_for_completion	
-			while(_adb_state != STATE_ADB_IDLE) {
-				mdelay(1);
-			}
 
+			wait_for_completion(&_adb_compl);
 			if (p->error == ADB_ERROR_UNKNOWN) {
 				return 0;
 			}	
@@ -192,7 +189,6 @@ bool adb_transfer(adb_packet* p) {
 
 		}
 	}
-
 	return 1;
 }
 
@@ -228,14 +224,16 @@ int adb_lowlevel_init(void) {
 		gpio_free(ADB_PIN_IRQ);
 		return r;
 	}
-	
+
+	init_completion(&_adb_compl);
+
 	hrtimer_init(&_adb_wdt, CLOCK_REALTIME, HRTIMER_MODE_REL);
 	_adb_period = ktime_set(0, 500000);
 	_adb_wdt.function = _adb_timer_func;
 	
 	_adb_pin_high();
 
-	usleep_range(2000, 2100);
+	msleep(2);
 
 	return 1;
 }

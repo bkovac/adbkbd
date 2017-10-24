@@ -13,8 +13,8 @@ enum {
 	ADB_HID_KEYBOARD_REG_3 = 3,
 };
 
+extern uint16_t adb_hid_codes[128];
 
-static uint16_t adb_hid_codes[128];
 struct input_dev* adb_hid_idev;
 bool adb_hid_init(uint8_t flags) {
 	int i;
@@ -59,6 +59,7 @@ void _adb_hid_scan_key(uint8_t k) {
 	uint8_t keycode, flags;
 	keycode = k & 0x7f;
 	flags = k & 0x80;
+	printk("pollcina %d\n", k);
 	int key = adb_hid_codes[keycode];
 	if (key) {
 		input_report_key(adb_hid_idev, key, !flags);
@@ -76,7 +77,7 @@ void _adb_hid_set_led(uint8_t l) {
 bool _adb_hid_tmp = false;
 void adb_hid_poll(void) {
 	if (!_adb_hid_tmp) {
-		adb_hid_tmp = true;
+		_adb_hid_tmp = true;
 		adb_packet ip = {
 			.command = (ADB_COMMAND_WRITE | (ADB_HID_KEYBOARD_ADDR << 4 ) | ADB_HID_KEYBOARD_REG_3),
 			.len = 2,
@@ -88,16 +89,16 @@ void adb_hid_poll(void) {
 			.command = (ADB_COMMAND_READ | (ADB_HID_KEYBOARD_ADDR << 4) | ADB_HID_KEYBOARD_REG_0),
 		};
 		if (!adb_transfer(&kpp)) {
-			adb_hid_tmp = false;
+			_adb_hid_tmp = false;
 			return;
 		}
 		if (kpp.error == ADB_ERROR_NO_DATA) {
 			return;
 		}
 		if (kpp.len == 2) {
-			_adb_scan_key(kpp.data[0]);
+			_adb_hid_scan_key(kpp.data[0]);
 			if (kpp.data[1] != 0xff) {
-				_adb_scan_key(kpp.data[1]);
+				_adb_hid_scan_key(kpp.data[1]);
 			}
 		}
 	}	
@@ -107,7 +108,7 @@ void adb_hid_exit(void) {
 	input_unregister_device(adb_hid_idev);
 }
 
-static uint16_t adb_hid_codes[128] = {
+uint16_t adb_hid_codes[128] = {
 	KEY_A, 
 	KEY_S, 
 	KEY_D, 
