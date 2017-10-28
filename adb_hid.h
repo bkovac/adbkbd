@@ -11,6 +11,8 @@ typedef struct {
 	bool move;
 } adb_hid_config;
 
+
+//adb_lowlevel_init should be called before this
 bool adb_hid_init(uint8_t flags);
 void adb_hid_exit(void);
 

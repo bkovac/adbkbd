@@ -233,7 +233,7 @@ int adb_lowlevel_init(void) {
 	
 	_adb_pin_high();
 
-	msleep(2);
+	msleep(2000);
 
 	return 1;
 }

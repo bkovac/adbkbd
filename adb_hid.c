@@ -50,6 +50,29 @@ bool adb_hid_init(uint8_t flags) {
 	input_report_key(adb_hid_idev, KEY_NUMLOCK, 1);
 	input_sync(adb_hid_idev);
 
+
+
+	adb_packet p = {
+		.command = (ADB_COMMAND_READ | (ADB_HID_KEYBOARD_ADDR << 4)| ADB_HID_KEYBOARD_REG_3),
+	};
+	if (!adb_transfer(&p)) {
+		return false;
+	}
+	i = 0;
+	switch (p.data[0]) {
+		case 0x04: case 0x05: case 0x07: case 0x09: case 0x0D:
+		case 0x11: case 0x14: case 0x19: case 0x1D: case 0xC1:
+		case 0xC4: case 0xC7:			
+			i = 1;
+			break;
+	}
+	printk("iso: %d", i);
+	if (i) {
+		i = adb_hid_codes[10];
+		adb_hid_codes[10] = adb_hid_codes[50];
+		adb_hid_codes[50] = i;	
+	}
+
 	return true;
 }
 
