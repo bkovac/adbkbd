@@ -6,6 +6,9 @@ This is pretty straight-forward and requires only a few wires and a 3v3-5v level
 
 You need to connect the ADB connector's VCC and GND to your power source, and the ADB data line through the level converter to TWO pins on your Linux board. I say two because I'm lazy and this was easier than doing it the proper way.
 
+Example schematic:
+![img](https://i.imgur.com/u8CNKlG.png)
+
 ## Installation
 Implying you have your kernel source downloaded, just type this:
 ```
@@ -15,6 +18,5 @@ sudo insmod adb.ko
 
 ## ToDo
 - Add support for more devices than just a keyboard
-- Make the attention pulse use a non-blocking delay
 - Clean the code up a little
 - Make the module use only one GPIO, instead of two
